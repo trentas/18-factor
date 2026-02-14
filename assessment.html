@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The 18-Factor App — Maturity Assessment</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-card: #f8f9fa;
+    --bg-hover: #f0f1f3;
+    --text: #1a1a2e;
+    --text-muted: #6c757d;
+    --border: #dee2e6;
+    --accent: #4361ee;
+    --foundation: #2563eb;
+    --construction: #d97706;
+    --operation: #059669;
+    --intelligence: #7c3aed;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
+    --radius: 8px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f172a;
+      --bg-card: #1e293b;
+      --bg-hover: #334155;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+      --shadow-lg: 0 4px 12px rgba(0,0,0,0.4);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0 1rem;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  header { text-align: center; padding: 2rem 0 1rem; }
+  header h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+  header p { color: var(--text-muted); font-size: 0.95rem; max-width: 600px; margin: 0 auto; }
+
+  /* Profile Bar */
+  .profile-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 0;
+  }
+  .profile-bar select {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    cursor: pointer;
+    min-width: 180px;
+  }
+  .btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.4rem 0.75rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.danger:hover { border-color: #dc3545; color: #dc3545; }
+
+  /* Compare Panel */
+  .compare-panel {
+    display: none;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.5rem 0;
+  }
+  .compare-panel.open { display: flex; }
+  .compare-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+  }
+  .compare-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  /* Chart Section */
+  .chart-section { display: flex; justify-content: center; padding: 1rem 0; }
+  .chart-wrap { width: 100%; max-width: 900px; height: 700px; position: relative; }
+  @media (max-width: 900px) { .chart-wrap { height: 500px; } }
+
+  /* Summary Bar */
+  .summary-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0 1.5rem;
+  }
+  .summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .summary-card .label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .summary-card .value { font-size: 1.5rem; font-weight: 700; margin-top: 0.15rem; }
+  .summary-card .sub { font-size: 0.8rem; color: var(--text-muted); }
+  .tier-foundation .value { color: var(--foundation); }
+  .tier-construction .value { color: var(--construction); }
+  .tier-operation .value { color: var(--operation); }
+  .tier-intelligence .value { color: var(--intelligence); }
+
+  /* Actions */
+  .actions { text-align: center; margin-bottom: 1.5rem; display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+
+  /* Tier Group */
+  .tier-group { margin-bottom: 1.5rem; }
+  .tier-heading {
+    font-size: 0.85rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; padding: 0.5rem 0; margin-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border);
+  }
+  .tier-heading.foundation { color: var(--foundation); border-color: var(--foundation); }
+  .tier-heading.construction { color: var(--construction); border-color: var(--construction); }
+  .tier-heading.operation { color: var(--operation); border-color: var(--operation); }
+  .tier-heading.intelligence { color: var(--intelligence); border-color: var(--intelligence); }
+
+  /* Factor Card */
+  .factor-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); margin-bottom: 0.5rem;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .factor-header {
+    display: flex; align-items: center; padding: 0.75rem 1rem;
+    cursor: pointer; user-select: none; gap: 0.75rem; transition: background 0.15s;
+  }
+  .factor-header:hover { background: var(--bg-hover); }
+  .factor-header .arrow { font-size: 0.7rem; transition: transform 0.2s; color: var(--text-muted); flex-shrink: 0; }
+  .factor-card.open .factor-header .arrow { transform: rotate(90deg); }
+  .factor-num { font-weight: 700; font-size: 0.85rem; color: var(--text-muted); min-width: 1.5rem; }
+  .factor-name { font-weight: 600; font-size: 0.95rem; flex: 1; }
+  .factor-score { font-size: 0.75rem; color: var(--text-muted); margin-right: 0.5rem; }
+  .maturity-badge {
+    font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.5rem;
+    border-radius: 10px; color: #fff; white-space: nowrap; flex-shrink: 0;
+  }
+
+  .factor-body { display: none; padding: 0 1rem 0.75rem; border-top: 1px solid var(--border); }
+  .factor-card.open .factor-body { display: block; }
+
+  .checklist { list-style: none; padding: 0.5rem 0 0; }
+  .checklist li { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.35rem 0; font-size: 0.9rem; line-height: 1.45; }
+  .checklist li label { cursor: pointer; flex: 1; }
+  .checklist li input[type="checkbox"] {
+    margin-top: 0.25rem; flex-shrink: 0; width: 16px; height: 16px;
+    accent-color: var(--accent); cursor: pointer;
+  }
+  .checklist li.is-na label { text-decoration: line-through; opacity: 0.45; }
+  .checklist li.is-na input[type="checkbox"] { opacity: 0.3; pointer-events: none; }
+  .na-btn {
+    flex-shrink: 0; font-size: 0.65rem; font-weight: 600;
+    padding: 0.1rem 0.35rem; border-radius: 4px;
+    border: 1px solid var(--border); background: none; color: var(--text-muted);
+    cursor: pointer; margin-top: 0.2rem; line-height: 1.2; transition: all 0.15s;
+  }
+  .na-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .na-btn.active { background: var(--text-muted); color: var(--bg); border-color: var(--text-muted); }
+
+  footer { text-align: center; padding: 2rem 0; color: var(--text-muted); font-size: 0.85rem; }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* Hidden file input */
+  #importInput { display: none; }
+
+  @media (max-width: 600px) {
+    header h1 { font-size: 1.35rem; }
+    .chart-wrap { max-width: 100%; }
+    .summary-bar { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>The 18-Factor App — Maturity Assessment</h1>
+    <p>Check off compliance items for each factor to see your application's maturity level on the radar chart. Progress is saved automatically.</p>
+  </header>
+
+  <div class="profile-bar" id="profileBar"></div>
+  <div class="compare-panel" id="comparePanel"></div>
+
+  <section class="chart-section">
+    <div class="chart-wrap">
+      <canvas id="radarChart"></canvas>
+    </div>
+  </section>
+
+  <section class="summary-bar" id="summaryBar"></section>
+
+  <div class="actions">
+    <button class="btn" onclick="resetAll()">Reset All</button>
+    <button class="btn" onclick="expandAll()">Expand All</button>
+    <button class="btn" onclick="collapseAll()">Collapse All</button>
+  </div>
+
+  <main id="factorList"></main>
+
+  <input type="file" id="importInput" accept=".json">
+
+  <footer>
+    <a href="README.md">Back to The 18-Factor App Methodology</a>
+  </footer>
+</div>
+
+<script>
+const FACTORS = [
+  {
+    num: 1, name: "Declarative Codebase", tier: "foundation",
+    items: [
+      "All application code is in version control with a clear branching strategy",
+      "Infrastructure is defined as code (Terraform, Pulumi, CDK, etc.) and versioned",
+      "Deployment manifests are declarative and versioned (Helm, Kustomize, etc.)",
+      "CI/CD pipelines are defined as code, not configured through UIs",
+      "AI system prompts and templates are versioned alongside application code",
+      "Agent tool definitions and schemas are in the repository",
+      "Evaluation datasets and benchmarks are versioned artifacts",
+      "AI coding assistant context files are maintained and versioned",
+      "Model configuration (selection, parameters) is declared in config files",
+      "Every production deployment is traceable to a specific commit"
+    ]
+  },
+  {
+    num: 2, name: "Contract-First Interfaces", tier: "foundation",
+    items: [
+      "All service APIs have machine-readable contract definitions (OpenAPI, protobuf, GraphQL SDL)",
+      "Contracts are written before implementations and stored in version control",
+      "Asynchronous event interfaces have schema definitions (AsyncAPI, CloudEvents)",
+      "AI agent tool definitions include typed parameters with descriptions and constraints",
+      "LLM structured output schemas are explicitly defined and validated at runtime",
+      "Contract tests verify that implementations match their specifications",
+      "Contracts are versioned with clear compatibility and deprecation policies",
+      "Schema descriptions are written to be useful for both humans and AI models",
+      "Breaking changes go through a review process with migration plans",
+      "Cross-team interfaces have shared contract ownership and review processes"
+    ]
+  },
+  {
+    num: 3, name: "Dependency Management", tier: "foundation",
+    items: [
+      "All language-level dependencies are declared in manifest files with lockfiles for deterministic resolution",
+      "No dependency relies on implicit system-wide installation",
+      "AI/ML SDKs are pinned to exact versions, not ranges",
+      "Native ML dependencies (CUDA, cuDNN, etc.) are declared in container definitions or environment specs",
+      "Model weights are versioned, checksummed, and declared as explicit dependencies",
+      "Model API versions are pinned in configuration, not just SDK versions",
+      "Dependency trees are audited for vulnerabilities, including AI-specific supply chain risks",
+      "Container images use multi-stage builds to minimize runtime attack surface",
+      "Hardware requirements (GPU type, memory, drivers) are documented as system dependencies",
+      "A process exists to test and roll out AI SDK upgrades safely"
+    ]
+  },
+  {
+    num: 4, name: "Configuration, Credentials, and Context", tier: "foundation",
+    items: [
+      "No credentials (API keys, tokens, passwords) exist in source code or config files",
+      "Credentials are managed through a dedicated secrets manager with access auditing",
+      "Environment-specific configuration is injected at runtime, not baked into builds",
+      "AI model selection and parameters are externalized configuration, not hardcoded",
+      "Cost budgets and rate limits are configurable without code changes",
+      "Safety thresholds and content filtering settings are configurable per environment",
+      "AI configuration files are validated at application startup",
+      "Configuration changes are auditable (who changed what, when)",
+      "Local development uses .env or equivalent files that are gitignored",
+      "Sensitive configuration values are never logged or exposed in error messages"
+    ]
+  },
+  {
+    num: 5, name: "Immutable Build Pipeline", tier: "construction",
+    items: [
+      "Build, evaluation, release, and run stages are strictly separated",
+      "Build artifacts are immutable \u2014 never patched in place",
+      "Each release has a unique, traceable version identifier",
+      "Prompt templates are compiled and validated during the build stage",
+      "Model versions are resolved and pinned at build time, recorded in the release manifest",
+      "Automated evaluations gate the pipeline \u2014 failed evals block the release",
+      "Evaluation results (quality, safety, cost) are recorded as part of the release metadata",
+      "Container images are scanned for vulnerabilities before release",
+      "Rollback is achieved by deploying a previous immutable release",
+      "Progressive delivery mechanisms (canary, shadow) are used for AI feature releases"
+    ]
+  },
+  {
+    num: 6, name: "Evaluation-Driven Development", tier: "construction",
+    items: [
+      "Every AI feature has an evaluation suite with defined quality dimensions",
+      "Golden datasets exist, are versioned, and cover core use cases and edge cases",
+      "Evaluation suites run in CI and gate releases (Factor 5)",
+      "Statistical thresholds are defined for each quality dimension with confidence intervals",
+      "LLM-as-judge evaluations are calibrated against human judgments",
+      "Human evaluation processes exist for high-stakes or ambiguous outputs",
+      "Evaluation results are tracked over time to detect trends and regressions",
+      "New failure modes discovered in production are added to evaluation datasets",
+      "Model upgrades and prompt changes are evaluated before deployment",
+      "Online evaluation continuously monitors production output quality"
+    ]
+  },
+  {
+    num: 7, name: "Responsible AI by Design", tier: "construction",
+    items: [
+      "Input guardrails detect and handle prompt injection attempts",
+      "PII is detected at input and output boundaries with configurable handling policies",
+      "Content safety classifiers screen AI outputs before serving to users",
+      "Bias monitoring runs continuously across demographic dimensions",
+      "Human-in-the-loop gates are defined for high-risk actions and low-confidence outputs",
+      "AI-generated content is clearly disclosed to users",
+      "RAG outputs include source attribution",
+      "Reasoning traces are logged for auditability",
+      "An AI incident response playbook exists and is practiced",
+      "Safety evaluations are part of the CI pipeline (Factor 5) and production monitoring (Factor 14)"
+    ]
+  },
+  {
+    num: 8, name: "Identity, Access, and Trust", tier: "construction",
+    items: [
+      "Every AI agent has a unique, verifiable identity distinct from users and other services",
+      "Agent permissions are explicitly declared and enforced architecturally (not just via prompts)",
+      "Agent permissions are a strict subset of the delegating user\u2019s permissions",
+      "Bounded autonomy defines what agents can do without human approval",
+      "Human approval workflows exist for high-risk agent actions",
+      "All agent actions are audit-logged with agent ID, user ID, action, and result",
+      "Agent credentials use short-lived, scoped tokens with automatic rotation",
+      "Trust boundaries are enforced between users, agents, and tools",
+      "Rate limits and cost budgets are enforced per agent",
+      "Agent permission policies are reviewed regularly and follow least-privilege principles"
+    ]
+  },
+  {
+    num: 9, name: "Disposability and Graceful Lifecycle", tier: "operation",
+    items: [
+      "Processes have structured startup sequences with distinct liveness and readiness phases",
+      "Kubernetes (or equivalent) health checks distinguish between liveness, readiness, and startup probes",
+      "Startup probes allow sufficient time for model loading without being killed prematurely",
+      "Graceful shutdown drains in-flight requests before terminating",
+      "Shutdown explicitly releases GPU memory and unloads models",
+      "Drain timeouts are configured and handle the case where requests cannot complete in time",
+      "Streaming responses send proper completion signals during shutdown",
+      "Model loading is optimized through caching, preloading, or quantization",
+      "Request handling is idempotent to support crash recovery",
+      "SIGTERM handlers are registered and tested"
+    ]
+  },
+  {
+    num: 10, name: "Intelligent Backing Services", tier: "operation",
+    items: [
+      "All backing services (including AI services) are attached via configuration, not hardcoded",
+      "LLM providers are abstracted behind a common interface, enabling provider swapping",
+      "Vector database access goes through an abstraction layer",
+      "Embedding service changes are planned as data migration operations",
+      "Failover strategies exist for critical AI backing services (LLM providers, vector DBs)",
+      "Circuit breakers protect against cascading failures from AI service outages",
+      "Rate limiting is implemented client-side for all AI backing services",
+      "Credentials for AI services are managed through secrets management (Factor 4)",
+      "Cost, latency, and availability are monitored per backing service",
+      "Backing service dependencies are documented with their operational characteristics"
+    ]
+  },
+  {
+    num: 11, name: "Environment Parity", tier: "operation",
+    items: [
+      "Production and staging use the same model versions for all AI services",
+      "Inference parameters (temperature, max tokens, etc.) are consistent across environments",
+      "Safety filters and guardrails are enabled in all environments, including development",
+      "Staging vector databases contain representative samples of production data",
+      "Embedding models are consistent across environments",
+      "Intentional environment divergences are documented with rationale",
+      "Automated parity checks compare configurations across environments",
+      "Local development has a clear path to validate changes against production-like conditions",
+      "Staging data is refreshed on a regular cadence",
+      "The evaluation suite (Factor 6) runs against the same model configuration used in production"
+    ]
+  },
+  {
+    num: 12, name: "Stateless Processes with Intelligent Caching", tier: "operation",
+    items: [
+      "Application processes are stateless \u2014 no in-process state survives a restart",
+      "Conversation history and session data are stored in backing services",
+      "Semantic caching reduces redundant LLM calls for similar queries",
+      "Embedding caching avoids recomputation of embeddings for unchanged content",
+      "Prompt structure maximizes provider-side prefix/context caching",
+      "Cache invalidation strategies account for time, content changes, and model updates",
+      "Cache hit rates and cost savings are monitored (Factor 14)",
+      "Any process instance can handle any request \u2014 no sticky sessions required",
+      "KV cache management is configured for self-hosted model serving",
+      "Cache storage itself is a backing service (Factor 10), not local process memory"
+    ]
+  },
+  {
+    num: 13, name: "Adaptive Concurrency", tier: "operation",
+    items: [
+      "Each process type is independently scalable with appropriate resource definitions",
+      "GPU workloads scale on GPU-specific metrics (utilization, memory), not CPU",
+      "AI provider rate limits are respected through client-side concurrency control",
+      "Cost budgets are enforced as scaling constraints (circuit breakers)",
+      "Auto-scaling signals include AI-specific metrics (queue depth, token throughput, cost rate)",
+      "Interactive and batch workloads use different scaling strategies",
+      "Multi-provider routing balances load across providers based on capacity and cost",
+      "Batch processing is used for throughput-oriented workloads",
+      "Scale-down respects graceful shutdown (Factor 9) with drain timeouts",
+      "Scaling decisions and cost impact are observable (Factor 14)"
+    ]
+  },
+  {
+    num: 14, name: "Full-Spectrum Observability", tier: "operation",
+    items: [
+      "All AI operations emit structured log events with token counts, cost, latency, and model version",
+      "Distributed traces span the full AI pipeline (retrieval \u2192 generation \u2192 safety check)",
+      "Token economics metrics are tracked by model, provider, feature, and tenant",
+      "Quality metrics from online evaluation are tracked and visualized",
+      "Safety monitoring tracks guardrail triggers, PII detections, and content filter activations",
+      "Cost dashboards show spend by feature, model, and tenant with budget tracking",
+      "Alert rules cover cost anomalies, quality regressions, safety spikes, and provider degradation",
+      "Prompt and completion logging respects PII policies (redacted or hashed)",
+      "Cache effectiveness (hit rates, cost savings) is measured",
+      "Observability data is retained long enough to support trend analysis and incident investigation"
+    ]
+  },
+  {
+    num: 15, name: "Model Lifecycle Management", tier: "intelligence",
+    items: [
+      "A model registry documents all models in use (provider, version, purpose, status, owner)",
+      "Production models are pinned to specific versions, not \u201clatest\u201d",
+      "A structured evaluation process exists for evaluating model candidates",
+      "Model A/B testing infrastructure enables controlled rollout of model changes",
+      "Deprecation plans exist for every model in use, with migration timelines",
+      "Provider model deprecation notices are tracked and acted on proactively",
+      "Fine-tuned models follow a versioned pipeline (data \u2192 train \u2192 eval \u2192 deploy)",
+      "Model changes are tracked in the same release process as code changes (Factor 5)",
+      "Embedding model changes are planned as data migration events",
+      "Model performance is continuously monitored in production (Factor 14)"
+    ]
+  },
+  {
+    num: 16, name: "Prompt and Context Engineering", tier: "intelligence",
+    items: [
+      "All prompts are stored in version control as named, reviewable files",
+      "Prompt changes go through pull request review and evaluation (Factor 6)",
+      "Context window utilization is budgeted with explicit allocations per component",
+      "RAG pipelines have defined stages (retrieval, reranking, assembly) with quality metrics",
+      "Token budgets account for system prompt, context, conversation history, and output reservation",
+      "Few-shot examples are curated, versioned, and selected dynamically based on relevance",
+      "Prompt templates are validated at build time (variables defined, within budget)",
+      "Conversation history management has a defined strategy (truncation, summarization)",
+      "Prompt effectiveness is measured through evaluations (Factor 6) and production monitoring (Factor 14)",
+      "Context assembly strategies handle overflow gracefully (truncation, prioritization)"
+    ]
+  },
+  {
+    num: 17, name: "Agent Orchestration and Bounded Autonomy", tier: "intelligence",
+    items: [
+      "Every agent has a defined purpose, tool set, and execution budget",
+      "Tool permissions are enforced architecturally (code), not just through prompts",
+      "Execution budgets (steps, tokens, cost, time) are enforced with hard limits",
+      "Human-in-the-loop gates exist for high-risk actions",
+      "Agent actions are fully observable with distributed tracing (Factor 14)",
+      "Multi-agent orchestration uses defined patterns (router, pipeline, supervisor)",
+      "Agents checkpoint state periodically to enable resume after failures",
+      "Failed agent actions can be rolled back where possible",
+      "Agent identities and permissions follow Factor 8 (Identity, Access, Trust)",
+      "Agent execution patterns and budget usage are monitored for optimization"
+    ]
+  },
+  {
+    num: 18, name: "AI Economics and Cost Architecture", tier: "intelligence",
+    items: [
+      "A cost model documents expected per-request and per-feature costs",
+      "Model routing directs requests to the most cost-effective model that meets quality needs",
+      "Budget circuit breakers enforce per-request, per-user, per-tenant, and global spending limits",
+      "Cost is attributed to features, teams, users, and tenants for accountability",
+      "Semantic caching ROI is measured and reported",
+      "Cost alerts fire at configurable thresholds before budgets are exhausted",
+      "Cost dashboards provide visibility into spending by feature, model, and tenant",
+      "Prompt and output token budgets are configured to prevent waste",
+      "Cost optimization strategies (routing, caching, batching) are actively used",
+      "AI cost is a line item in capacity planning and business case analysis"
+    ]
+  }
+];
+
+const TIERS = {
+  foundation:    { label: "Tier 1: Foundation",    color: "#2563eb", factors: [1,2,3,4] },
+  construction:  { label: "Tier 2: Construction",  color: "#d97706", factors: [5,6,7,8] },
+  operation:     { label: "Tier 3: Operation",     color: "#059669", factors: [9,10,11,12,13,14] },
+  intelligence:  { label: "Tier 4: Intelligence",  color: "#7c3aed", factors: [15,16,17,18] }
+};
+
+const MATURITY_LEVELS = [
+  { label: "None",       bg: "#6c757d" },
+  { label: "Initial",    bg: "#dc3545" },
+  { label: "Developing", bg: "#fd7e14" },
+  { label: "Defined",    bg: "#ffc107" },
+  { label: "Managed",    bg: "#198754" },
+  { label: "Optimized",  bg: "#0d6efd" }
+];
+
+const SHORT_NAMES = [
+  "Declarative Codebase", "Contract-First Interfaces", "Dependency Mgmt",
+  "Config & Credentials", "Immutable Build", "Eval-Driven Dev",
+  "Responsible AI", "Identity & Trust", "Disposability",
+  "Backing Services", "Env Parity", "Stateless + Caching",
+  "Adaptive Concurrency", "Observability", "Model Lifecycle",
+  "Prompt & Context", "Agent Orchestration", "AI Economics"
+];
+
+const COMPARE_COLORS = [
+  "#4361ee", "#e63946", "#2a9d8f", "#e9c46a",
+  "#f4a261", "#264653", "#d62828", "#7209b7"
+];
+
+const STORAGE_KEY = "18factor-assessment";
+
+// --- Profiles State ---
+let db = loadDB();
+let compareMode = false;
+let compareSelected = new Set();
+
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return createFreshDB();
+    const parsed = JSON.parse(raw);
+    // Migration: old flat state (no profiles key)
+    if (!parsed.profiles) {
+      const id = genId();
+      return { profiles: { [id]: { name: "Default", state: parsed } }, activeProfile: id };
+    }
+    return parsed;
+  } catch {
+    return createFreshDB();
+  }
+}
+
+function createFreshDB() {
+  const id = genId();
+  return { profiles: { [id]: { name: "Default", state: {} } }, activeProfile: id };
+}
+
+function saveDB() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+
+function activeState() { return db.profiles[db.activeProfile].state; }
+function activeProfileName() { return db.profiles[db.activeProfile].name; }
+function profileIds() { return Object.keys(db.profiles); }
+
+// --- State accessors (operate on active profile) ---
+function getChecked(factorNum, idx) {
+  const s = activeState();
+  return !!(s[factorNum] && s[factorNum][idx]);
+}
+
+function isNA(factorNum, idx) {
+  const s = activeState();
+  return !!(s[`${factorNum}_na`] && s[`${factorNum}_na`][idx]);
+}
+
+function setChecked(factorNum, idx, val) {
+  const s = activeState();
+  if (!s[factorNum]) s[factorNum] = {};
+  s[factorNum][idx] = val;
+  saveDB();
+  update();
+}
+
+function toggleNA(factorNum, idx) {
+  const s = activeState();
+  const key = `${factorNum}_na`;
+  if (!s[key]) s[key] = {};
+  s[key][idx] = !s[key][idx];
+  if (s[key][idx] && s[factorNum] && s[factorNum][idx]) {
+    s[factorNum][idx] = false;
+  }
+  saveDB();
+  const openCards = new Set();
+  document.querySelectorAll(".factor-card.open").forEach(c => openCards.add(c.id));
+  renderFactors();
+  openCards.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("open"); });
+  update();
+}
+
+function countChecked(factorNum, st) {
+  const s = st || activeState();
+  const f = s[factorNum];
+  if (!f) return 0;
+  let count = 0;
+  for (let i = 0; i < 10; i++) {
+    const naKey = `${factorNum}_na`;
+    const isItemNA = s[naKey] && s[naKey][i];
+    if (f[i] && !isItemNA) count++;
+  }
+  return count;
+}
+
+function countNA(factorNum, st) {
+  const s = st || activeState();
+  const key = `${factorNum}_na`;
+  const f = s[key];
+  if (!f) return 0;
+  return Object.values(f).filter(Boolean).length;
+}
+
+function countApplicable(factorNum, st) { return 10 - countNA(factorNum, st); }
+
+function maturityScore(factorNum, st) {
+  const applicable = countApplicable(factorNum, st);
+  if (applicable === 0) return 5;
+  const checked = countChecked(factorNum, st);
+  const pct = checked / applicable;
+  if (pct === 0) return 0;
+  if (pct <= 0.2) return 1;
+  if (pct <= 0.4) return 2;
+  if (pct <= 0.6) return 3;
+  if (pct <= 0.8) return 4;
+  return 5;
+}
+
+function maturityInfo(factorNum, st) { return MATURITY_LEVELS[maturityScore(factorNum, st)]; }
+
+// --- Profile CRUD ---
+function createProfile(name) {
+  const id = genId();
+  db.profiles[id] = { name, state: {} };
+  db.activeProfile = id;
+  saveDB();
+  fullRender();
+}
+
+function renameProfile() {
+  const name = prompt("Rename application:", activeProfileName());
+  if (!name || name === activeProfileName()) return;
+  db.profiles[db.activeProfile].name = name;
+  saveDB();
+  renderProfileBar();
+  renderComparePanel();
+}
+
+function deleteProfile() {
+  const ids = profileIds();
+  if (ids.length <= 1) { alert("Cannot delete the only profile."); return; }
+  if (!confirm(`Delete "${activeProfileName()}"? This cannot be undone.`)) return;
+  delete db.profiles[db.activeProfile];
+  compareSelected.delete(db.activeProfile);
+  db.activeProfile = Object.keys(db.profiles)[0];
+  saveDB();
+  fullRender();
+}
+
+function switchProfile(id) {
+  if (!db.profiles[id]) return;
+  db.activeProfile = id;
+  saveDB();
+  renderProfileBar();
+  renderFactors();
+  update();
+}
+
+function promptNewProfile() {
+  const name = prompt("Application name:");
+  if (!name) return;
+  createProfile(name);
+}
+
+// --- Export / Import ---
+function exportJSON() {
+  const s = activeState();
+  const data = {
+    name: activeProfileName(),
+    exportedAt: new Date().toISOString(),
+    version: "18factor-v1",
+    factors: {}
+  };
+  for (const f of FACTORS) {
+    const checked = [];
+    const na = [];
+    for (let i = 0; i < 10; i++) {
+      if (s[f.num] && s[f.num][i]) checked.push(i);
+      if (s[`${f.num}_na`] && s[`${f.num}_na`][i]) na.push(i);
+    }
+    data.factors[f.num] = { name: f.name, checked, na };
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `18factor-${activeProfileName().replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON() {
+  document.getElementById("importInput").click();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("importInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.factors || !data.name) { alert("Invalid assessment file."); return; }
+        const st = {};
+        for (const [num, info] of Object.entries(data.factors)) {
+          if (info.checked && info.checked.length) {
+            st[num] = {};
+            for (const i of info.checked) st[num][i] = true;
+          }
+          if (info.na && info.na.length) {
+            st[`${num}_na`] = {};
+            for (const i of info.na) st[`${num}_na`][i] = true;
+          }
+        }
+        const id = genId();
+        db.profiles[id] = { name: data.name, state: st };
+        db.activeProfile = id;
+        saveDB();
+        fullRender();
+      } catch { alert("Could not parse file."); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+});
+
+// --- Compare ---
+function toggleCompare() {
+  compareMode = !compareMode;
+  renderProfileBar();
+  renderComparePanel();
+  updateChart();
+}
+
+function toggleCompareProfile(id) {
+  if (compareSelected.has(id)) compareSelected.delete(id);
+  else compareSelected.add(id);
+  renderComparePanel();
+  updateChart();
+}
+
+// --- Rendering ---
+function renderProfileBar() {
+  const bar = document.getElementById("profileBar");
+  const ids = profileIds();
+  let opts = ids.map(id =>
+    `<option value="${id}" ${id === db.activeProfile ? "selected" : ""}>${db.profiles[id].name}</option>`
+  ).join("");
+  bar.innerHTML = `
+    <select onchange="switchProfile(this.value)">${opts}</select>
+    <button class="btn" onclick="promptNewProfile()">+ New</button>
+    <button class="btn" onclick="renameProfile()">Rename</button>
+    <button class="btn danger" onclick="deleteProfile()">Delete</button>
+    <span style="border-left:1px solid var(--border);height:1.5rem;margin:0 0.25rem"></span>
+    <button class="btn" onclick="exportJSON()">Export JSON</button>
+    <button class="btn" onclick="importJSON()">Import JSON</button>
+    <span style="border-left:1px solid var(--border);height:1.5rem;margin:0 0.25rem"></span>
+    <button class="btn ${compareMode ? "active" : ""}" onclick="toggleCompare()">Compare</button>
+  `;
+}
+
+function renderComparePanel() {
+  const panel = document.getElementById("comparePanel");
+  if (!compareMode) { panel.classList.remove("open"); return; }
+  panel.classList.add("open");
+  const ids = profileIds();
+  panel.innerHTML = ids.map((id, i) => {
+    const color = COMPARE_COLORS[i % COMPARE_COLORS.length];
+    const checked = compareSelected.has(id) ? "checked" : "";
+    return `<label class="compare-item">
+      <input type="checkbox" ${checked} onchange="toggleCompareProfile('${id}')">
+      <span class="compare-dot" style="background:${color}"></span>
+      ${db.profiles[id].name}
+    </label>`;
+  }).join("");
+}
+
+function renderFactors() {
+  const list = document.getElementById("factorList");
+  list.innerHTML = "";
+
+  for (const [tierKey, tier] of Object.entries(TIERS)) {
+    const group = document.createElement("div");
+    group.className = "tier-group";
+
+    const heading = document.createElement("div");
+    heading.className = `tier-heading ${tierKey}`;
+    heading.textContent = tier.label;
+    group.appendChild(heading);
+
+    for (const factor of FACTORS.filter(f => tier.factors.includes(f.num))) {
+      const card = document.createElement("div");
+      card.className = "factor-card";
+      card.id = `factor-${factor.num}`;
+
+      const checked = countChecked(factor.num);
+      const applicable = countApplicable(factor.num);
+      const mi = maturityInfo(factor.num);
+      const ms = maturityScore(factor.num);
+
+      card.innerHTML = `
+        <div class="factor-header" onclick="toggleCard(${factor.num})">
+          <span class="arrow">\u25B6</span>
+          <span class="factor-num">${factor.num}</span>
+          <span class="factor-name">${factor.name}</span>
+          <span class="factor-score" id="score-${factor.num}">${checked}/${applicable}</span>
+          <span class="maturity-badge" id="badge-${factor.num}" style="background:${mi.bg}">${ms} ${mi.label}</span>
+        </div>
+        <div class="factor-body">
+          <ul class="checklist">
+            ${factor.items.map((item, i) => {
+              const na = isNA(factor.num, i);
+              return `
+              <li class="${na ? "is-na" : ""}">
+                <input type="checkbox" id="cb-${factor.num}-${i}" ${getChecked(factor.num, i) ? "checked" : ""} onchange="setChecked(${factor.num},${i},this.checked)">
+                <label for="cb-${factor.num}-${i}">${item}</label>
+                <button class="na-btn ${na ? "active" : ""}" onclick="toggleNA(${factor.num},${i})" title="Mark as not applicable">N/A</button>
+              </li>`;
+            }).join("")}
+          </ul>
+        </div>
+      `;
+      group.appendChild(card);
+    }
+    list.appendChild(group);
+  }
+}
+
+function toggleCard(num) {
+  document.getElementById(`factor-${num}`).classList.toggle("open");
+}
+
+function expandAll() {
+  document.querySelectorAll(".factor-card").forEach(c => c.classList.add("open"));
+}
+
+function collapseAll() {
+  document.querySelectorAll(".factor-card").forEach(c => c.classList.remove("open"));
+}
+
+function resetAll() {
+  if (!confirm(`Reset all items for "${activeProfileName()}"? This cannot be undone.`)) return;
+  db.profiles[db.activeProfile].state = {};
+  saveDB();
+  renderFactors();
+  update();
+}
+
+// --- Summary ---
+function renderSummary() {
+  const bar = document.getElementById("summaryBar");
+  const totalChecked = FACTORS.reduce((s, f) => s + countChecked(f.num), 0);
+  const totalApplicable = FACTORS.reduce((s, f) => s + countApplicable(f.num), 0);
+  const avgMaturity = (FACTORS.reduce((s, f) => s + maturityScore(f.num), 0) / 18).toFixed(1);
+
+  let html = `
+    <div class="summary-card">
+      <div class="label">Overall Score</div>
+      <div class="value">${totalChecked}/${totalApplicable}</div>
+      <div class="sub">Avg maturity: ${avgMaturity}</div>
+    </div>
+  `;
+
+  for (const [tierKey, tier] of Object.entries(TIERS)) {
+    const tierFactors = FACTORS.filter(f => tier.factors.includes(f.num));
+    const tierChecked = tierFactors.reduce((s, f) => s + countChecked(f.num), 0);
+    const tierApplicable = tierFactors.reduce((s, f) => s + countApplicable(f.num), 0);
+    const tierAvg = (tierFactors.reduce((s, f) => s + maturityScore(f.num), 0) / tierFactors.length).toFixed(1);
+    html += `
+      <div class="summary-card tier-${tierKey}">
+        <div class="label">${tier.label.replace("Tier ", "T")}</div>
+        <div class="value">${tierChecked}/${tierApplicable}</div>
+        <div class="sub">Avg: ${tierAvg}</div>
+      </div>
+    `;
+  }
+  bar.innerHTML = html;
+}
+
+// --- Chart ---
+let radarChart;
+
+function buildDataset(profileId, colorIndex) {
+  const profile = db.profiles[profileId];
+  if (!profile) return null;
+  const st = profile.state;
+  const color = COMPARE_COLORS[colorIndex % COMPARE_COLORS.length];
+  const borderColors = FACTORS.map(f => TIERS[f.tier].color);
+  const isSingle = !compareMode || compareSelected.size === 0;
+
+  return {
+    label: profile.name,
+    data: FACTORS.map(f => maturityScore(f.num, st)),
+    backgroundColor: isSingle ? "rgba(67, 97, 238, 0.15)" : color + "14",
+    borderColor: isSingle ? "rgba(67, 97, 238, 0.8)" : color,
+    borderWidth: 2,
+    pointBackgroundColor: isSingle ? borderColors : color,
+    pointBorderColor: isSingle ? borderColors : color,
+    pointRadius: isSingle ? 4 : 3,
+    pointHoverRadius: 6
+  };
+}
+
+function initChart() {
+  const ctx = document.getElementById("radarChart").getContext("2d");
+  const labels = FACTORS.map((f, i) => `${f.num}. ${SHORT_NAMES[i]}`);
+
+  const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const gridColor = isDark ? "rgba(148,163,184,0.15)" : "rgba(0,0,0,0.08)";
+  const tickColor = isDark ? "#94a3b8" : "#6c757d";
+
+  radarChart = new Chart(ctx, {
+    type: "radar",
+    data: {
+      labels,
+      datasets: [buildDataset(db.activeProfile, 0)]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => FACTORS[items[0].dataIndex].num + ". " + FACTORS[items[0].dataIndex].name,
+            label: (item) => {
+              const f = FACTORS[item.dataIndex];
+              const profileId = compareMode && compareSelected.size > 0
+                ? [...compareSelected][item.datasetIndex]
+                : db.activeProfile;
+              const st = db.profiles[profileId] ? db.profiles[profileId].state : activeState();
+              const c = countChecked(f.num, st);
+              const a = countApplicable(f.num, st);
+              const ms = maturityScore(f.num, st);
+              const mi = MATURITY_LEVELS[ms];
+              const prefix = compareMode && compareSelected.size > 0 ? item.dataset.label + ": " : "";
+              return `${prefix}Level ${ms} (${mi.label}) \u2014 ${c}/${a} items`;
+            }
+          }
+        }
+      },
+      scales: {
+        r: {
+          min: 0,
+          max: 5,
+          ticks: {
+            stepSize: 1,
+            color: tickColor,
+            backdropColor: "transparent",
+            font: { size: 10 },
+            callback: (v) => ["None","Initial","Developing","Defined","Managed","Optimized"][v] || ""
+          },
+          pointLabels: {
+            color: (ctx) => TIERS[FACTORS[ctx.index].tier].color,
+            font: { size: 11, weight: "500" },
+            padding: 16
+          },
+          grid: { color: gridColor },
+          angleLines: { color: gridColor }
+        }
+      }
+    }
+  });
+}
+
+function updateChart() {
+  if (!radarChart) return;
+
+  if (compareMode && compareSelected.size > 0) {
+    const ids = [...compareSelected];
+    radarChart.data.datasets = ids.map((id, i) => buildDataset(id, i)).filter(Boolean);
+    radarChart.options.plugins.legend.display = true;
+  } else {
+    radarChart.data.datasets = [buildDataset(db.activeProfile, 0)];
+    radarChart.options.plugins.legend.display = false;
+  }
+  radarChart.update("none");
+}
+
+// --- Update all ---
+function update() {
+  updateChart();
+  renderSummary();
+
+  for (const factor of FACTORS) {
+    const checked = countChecked(factor.num);
+    const applicable = countApplicable(factor.num);
+    const mi = maturityInfo(factor.num);
+    const ms = maturityScore(factor.num);
+    const scoreEl = document.getElementById(`score-${factor.num}`);
+    const badgeEl = document.getElementById(`badge-${factor.num}`);
+    if (scoreEl) scoreEl.textContent = `${checked}/${applicable}`;
+    if (badgeEl) {
+      badgeEl.style.background = mi.bg;
+      badgeEl.textContent = `${ms} ${mi.label}`;
+    }
+  }
+}
+
+function fullRender() {
+  renderProfileBar();
+  renderComparePanel();
+  renderFactors();
+  update();
+}
+
+// --- Init ---
+fullRender();
+initChart();
+</script>
+</body>
+</html>

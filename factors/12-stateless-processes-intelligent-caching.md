@@ -1,0 +1,225 @@
+# Factor 12: Stateless Processes with Intelligent Caching
+
+> Execute the application as stateless processes that share nothing — and use semantic caching, embedding caching, and context caching to manage the cost and latency of AI operations.
+
+## Motivation
+
+The original factor mandated stateless, share-nothing processes. Any data that needs to persist is stored in a backing service (database, cache, object store). This enables horizontal scaling, fault tolerance, and simple deployment. Processes can be started, stopped, or moved without data loss.
+
+AI applications challenge this principle not by invalidating it, but by making caching dramatically more important. LLM inference is expensive (dollars per million tokens) and slow (seconds per request). Without intelligent caching, every semantically identical request incurs full cost and latency. Caching in AI systems goes beyond exact-match key-value caching — it includes semantic caching (similar but not identical queries), embedding caching (avoid re-computing vectors for unchanged content), and context caching (reuse expensive prompt preambles).
+
+## What This Replaces
+
+**Original Factor #6 / Beyond 15 #12: Stateless Processes** — "Execute the app as one or more stateless processes."
+
+This update retains the stateless process requirement and adds intelligent caching strategies specific to AI workloads:
+
+- Semantic caching for LLM responses
+- Embedding caching for vector operations
+- Context/prefix caching for repeated prompt preambles
+- KV cache management for model serving
+- Conversation state externalization
+
+## How AI Changes This
+
+### AI-Assisted Development
+- AI coding assistants maintain conversation context — but this state lives in the tool (or the AI provider's session), not in the application process. The principle of stateless processes still applies.
+
+### AI-Native Applications
+- **Semantic caching**: Two users asking "What's the refund policy?" and "How do I get a refund?" should potentially hit the same cached response. This requires similarity-based cache lookup, not exact-match.
+- **Embedding caching**: Computing embeddings for a document is deterministic for a given model version. Cache embeddings keyed on `(content_hash, model_version)` to avoid recomputation.
+- **Context caching**: Many LLM providers support prefix caching — if the first N tokens of a request match a previous request, computation is reused. Design prompts with stable prefixes to maximize cache hits.
+- **Conversation state**: Chat history is state, but it belongs in a backing service (database, Redis), not in the process. This enables any process instance to handle any request in a conversation.
+
+## In Practice
+
+### Stateless Process Design
+
+```python
+class AIRequestHandler:
+    """Stateless handler — all state is in backing services."""
+
+    def __init__(self, llm: LLMProvider, cache: CacheService, vector_db: VectorStore):
+        # Dependencies are injected, not stored in process memory
+        self.llm = llm
+        self.cache = cache
+        self.vector_db = vector_db
+
+    async def handle(self, request: Request) -> Response:
+        # Conversation history comes from the request or backing service
+        conversation = await self.load_conversation(request.conversation_id)
+
+        # Check semantic cache before calling LLM
+        cached = await self.cache.semantic_lookup(request.message, conversation.context)
+        if cached and cached.similarity > 0.95:
+            return cached.response
+
+        # Process request — no local state
+        response = await self.process(request, conversation)
+
+        # Store conversation state in backing service
+        await self.save_conversation(request.conversation_id, conversation)
+
+        # Cache the response for future similar queries
+        await self.cache.store(request.message, conversation.context, response)
+
+        return response
+```
+
+### Semantic Caching
+
+```python
+class SemanticCache:
+    """Cache LLM responses using semantic similarity, not exact match."""
+
+    def __init__(self, vector_store: VectorStore, response_store: ResponseStore):
+        self.vector_store = vector_store
+        self.response_store = response_store
+
+    async def lookup(self, query: str, context: str) -> CacheResult | None:
+        # Embed the query
+        query_embedding = await self.embed(query)
+
+        # Search for similar cached queries
+        results = await self.vector_store.query(
+            vector=query_embedding,
+            top_k=1,
+            filter={"context_hash": hash(context)},  # Same context
+            threshold=0.95,  # High similarity required
+        )
+
+        if results:
+            response = await self.response_store.get(results[0].id)
+            return CacheResult(
+                response=response,
+                similarity=results[0].score,
+                cache_hit=True,
+            )
+        return None
+
+    async def store(self, query: str, context: str, response: str):
+        query_embedding = await self.embed(query)
+        cache_id = generate_id()
+
+        await self.vector_store.upsert([Vector(
+            id=cache_id,
+            values=query_embedding,
+            metadata={"context_hash": hash(context), "timestamp": now()},
+        )])
+        await self.response_store.set(cache_id, response, ttl=3600)
+```
+
+### Embedding Caching
+
+```python
+class EmbeddingCache:
+    """Cache embeddings by content hash to avoid recomputation."""
+
+    def __init__(self, cache: KeyValueStore, embedding_service: EmbeddingService):
+        self.cache = cache
+        self.embedding_service = embedding_service
+        self.model_version = embedding_service.model_version
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        results = [None] * len(texts)
+        uncached_indices = []
+
+        # Check cache for each text
+        for i, text in enumerate(texts):
+            cache_key = f"emb:{self.model_version}:{hash(text)}"
+            cached = await self.cache.get(cache_key)
+            if cached:
+                results[i] = cached
+            else:
+                uncached_indices.append(i)
+
+        # Compute only uncached embeddings
+        if uncached_indices:
+            uncached_texts = [texts[i] for i in uncached_indices]
+            new_embeddings = await self.embedding_service.embed(uncached_texts)
+
+            for idx, embedding in zip(uncached_indices, new_embeddings):
+                results[idx] = embedding
+                cache_key = f"emb:{self.model_version}:{hash(texts[idx])}"
+                await self.cache.set(cache_key, embedding)
+
+        return results
+```
+
+### Context/Prefix Caching
+Design prompts to maximize provider-side prefix caching:
+
+```python
+# Structure prompts so the prefix is stable across requests
+system_prompt = """
+[STABLE PREFIX — same for all requests, cached by provider]
+You are a customer support agent for ExampleCorp.
+
+Company policies:
+{large_policy_document}
+
+Product catalog:
+{large_product_catalog}
+
+Instructions:
+{detailed_instructions}
+"""
+
+# Variable part comes AFTER the stable prefix
+user_message = f"""
+[VARIABLE SUFFIX — unique per request]
+Customer: {customer_message}
+Context: {conversation_history}
+"""
+```
+
+### Conversation State Externalization
+
+```python
+class ConversationStore:
+    """Externalize conversation state to a backing service."""
+
+    def __init__(self, redis: Redis):
+        self.redis = redis
+
+    async def load(self, conversation_id: str) -> Conversation:
+        data = await self.redis.get(f"conv:{conversation_id}")
+        if data:
+            return Conversation.deserialize(data)
+        return Conversation.new()
+
+    async def save(self, conversation_id: str, conversation: Conversation):
+        await self.redis.set(
+            f"conv:{conversation_id}",
+            conversation.serialize(),
+            ex=86400,  # 24h TTL
+        )
+
+    async def append_turn(self, conversation_id: str, role: str, content: str):
+        conversation = await self.load(conversation_id)
+        conversation.add_turn(role, content)
+        # Trim to fit context window budget
+        conversation.trim_to_token_budget(max_history_tokens=4000)
+        await self.save(conversation_id, conversation)
+```
+
+### Cache Invalidation
+AI caches need careful invalidation strategies:
+
+- **Time-based TTL**: LLM responses may become stale as the world changes. Set appropriate TTLs.
+- **Content-based invalidation**: When source documents change, invalidate cached responses that were generated from those documents.
+- **Model-based invalidation**: When the model version changes, cached responses from the old model should be invalidated.
+- **Feedback-based invalidation**: When a user marks a cached response as unhelpful, remove it from the cache.
+
+## Compliance Checklist
+
+- [ ] Application processes are stateless — no in-process state survives a restart
+- [ ] Conversation history and session data are stored in backing services
+- [ ] Semantic caching reduces redundant LLM calls for similar queries
+- [ ] Embedding caching avoids recomputation of embeddings for unchanged content
+- [ ] Prompt structure maximizes provider-side prefix/context caching
+- [ ] Cache invalidation strategies account for time, content changes, and model updates
+- [ ] Cache hit rates and cost savings are monitored (Factor 14)
+- [ ] Any process instance can handle any request — no sticky sessions required
+- [ ] KV cache management is configured for self-hosted model serving
+- [ ] Cache storage itself is a backing service (Factor 10), not local process memory

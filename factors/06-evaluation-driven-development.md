@@ -1,0 +1,165 @@
+# Factor 6: Evaluation-Driven Development
+
+> Non-deterministic systems demand a new testing paradigm — use evaluations, statistical quality gates, and LLM-as-judge to maintain confidence in AI outputs.
+
+## Motivation
+
+Traditional software testing rests on determinism: given input X, expect output Y. Unit tests assert exact values. Integration tests verify specific behaviors. This paradigm breaks down with AI systems. Ask the same question to the same model twice and you may get different responses — both correct, neither identical. Traditional assertion-based testing cannot adequately cover AI behavior.
+
+Evaluation-driven development (EDD) is the AI-native complement to test-driven development. Where TDD uses assertions, EDD uses evaluations. Where TDD expects exact matches, EDD measures statistical quality across a distribution of outputs. Where TDD has pass/fail, EDD has quality scores with confidence intervals.
+
+This is not optional. Without evaluations, AI development becomes intuition-driven — "it seems to work" replaces "it passes the tests." Evaluations are the only way to have confidence that changes to prompts, models, or system design actually improve (or at least don't degrade) output quality.
+
+## What This Replaces
+
+**New — no direct predecessor.** The original 12/15-factor methodology assumed deterministic behavior that could be validated through traditional testing.
+
+The closest analogue is the general practice of testing, but EDD is fundamentally different in approach and requires its own tooling, datasets, and quality gates.
+
+## How AI Changes This
+
+This factor *is* the AI change. It exists because AI systems introduced non-determinism at the application layer. Specifically:
+
+- **LLM outputs are non-deterministic**: Even at temperature 0, outputs can vary across provider infrastructure changes.
+- **Quality is subjective and multi-dimensional**: A response can be accurate but not concise, helpful but not safe, fluent but factually wrong.
+- **Regression is subtle**: A prompt change that improves one dimension may degrade another. Only broad evaluation suites catch these trade-offs.
+- **Model updates change behavior**: When a provider updates a model, your application's behavior changes without any code change on your part.
+
+## In Practice
+
+### Evaluation Types
+
+**1. Deterministic Evaluations**
+Where exact answers exist, use them:
+
+```python
+# Classification tasks, entity extraction, structured output
+def eval_classification(output, expected):
+    return output.label == expected.label
+
+def eval_json_schema(output, schema):
+    return jsonschema.validate(output, schema) is None
+```
+
+**2. Heuristic Evaluations**
+Rule-based checks for structure, format, and constraints:
+
+```python
+# Check response properties without judging content
+def eval_response_properties(response):
+    checks = {
+        "within_token_limit": len(tokenize(response)) <= 500,
+        "no_pii_detected": not pii_detector.scan(response),
+        "valid_markdown": markdown_parser.is_valid(response),
+        "no_hallucinated_urls": not contains_urls(response),
+        "appropriate_language": language_detector.detect(response) == "en",
+    }
+    return checks
+```
+
+**3. LLM-as-Judge Evaluations**
+Use a capable model to evaluate output quality:
+
+```python
+# LLM-as-judge for subjective quality dimensions
+judge_prompt = """
+Evaluate the following response on these dimensions.
+Score each from 1-5.
+
+**Accuracy**: Does the response contain only factually correct information?
+**Relevance**: Does the response address the user's question?
+**Completeness**: Does the response cover all important aspects?
+**Conciseness**: Is the response appropriately brief without losing substance?
+
+User Question: {question}
+Response to Evaluate: {response}
+Reference Answer: {reference}
+
+Return JSON: {"accuracy": N, "relevance": N, "completeness": N, "conciseness": N}
+"""
+```
+
+**4. Human Evaluations**
+For high-stakes decisions, sample outputs for human review:
+
+```yaml
+human_eval_config:
+  sample_rate: 0.05            # Review 5% of production outputs
+  dimensions:
+    - accuracy
+    - helpfulness
+    - safety
+  reviewers_per_sample: 2       # Inter-annotator agreement
+  escalation_threshold: 0.3     # Disagreement triggers review
+```
+
+### Golden Datasets
+Maintain curated evaluation datasets:
+
+```jsonl
+{"input": "Summarize the Q3 earnings report", "reference": "Revenue grew 15%...", "tags": ["summarization", "finance"]}
+{"input": "Is this email a phishing attempt?", "reference": "Yes, because...", "tags": ["classification", "security"]}
+{"input": "Explain quantum entanglement simply", "reference": "Quantum entanglement is...", "tags": ["explanation", "science"]}
+```
+
+Golden datasets should:
+- Be versioned alongside code (Factor 1)
+- Cover edge cases and adversarial inputs
+- Include diverse examples across all supported use cases
+- Be updated when new failure modes are discovered
+
+### Statistical Quality Gates
+Evaluations produce distributions, not single pass/fail results:
+
+```yaml
+quality_gates:
+  summarization:
+    accuracy:
+      threshold: 0.90
+      confidence: 0.95          # 95% confidence interval must be above threshold
+      min_samples: 100
+    relevance:
+      threshold: 0.85
+    cost:
+      mean_tokens: 500
+      p95_tokens: 1200
+
+  classification:
+    accuracy:
+      threshold: 0.95
+    f1_score:
+      threshold: 0.92
+```
+
+### Evaluation in the Development Workflow
+
+```
+1. Write/modify prompt or AI logic
+2. Run eval suite locally (quick subset)
+3. Open pull request
+4. CI runs full eval suite
+5. Compare results against baseline (previous release)
+6. Review regression/improvement analysis
+7. Merge only if quality gates pass
+8. Post-deploy monitoring continues evaluation on live traffic
+```
+
+### Continuous Evaluation
+Evaluations don't stop at deployment:
+
+- **Online evaluation**: Sample production inputs/outputs and run evaluations continuously.
+- **Drift detection**: Alert when evaluation scores trend downward, which may indicate model degradation, data drift, or changing user patterns.
+- **A/B evaluation**: When testing a new model or prompt, run evaluations on both variants with real traffic.
+
+## Compliance Checklist
+
+- [ ] Every AI feature has an evaluation suite with defined quality dimensions
+- [ ] Golden datasets exist, are versioned, and cover core use cases and edge cases
+- [ ] Evaluation suites run in CI and gate releases (Factor 5)
+- [ ] Statistical thresholds are defined for each quality dimension with confidence intervals
+- [ ] LLM-as-judge evaluations are calibrated against human judgments
+- [ ] Human evaluation processes exist for high-stakes or ambiguous outputs
+- [ ] Evaluation results are tracked over time to detect trends and regressions
+- [ ] New failure modes discovered in production are added to evaluation datasets
+- [ ] Model upgrades and prompt changes are evaluated before deployment
+- [ ] Online evaluation continuously monitors production output quality
