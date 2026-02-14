@@ -190,6 +190,49 @@ data_governance:
     generation_method: documented # reproducibility
 ```
 
+### Regulatory Compliance (GDPR / LGPD)
+AI applications that process personal data must comply with data protection regulations. These requirements are architectural — they must be built into the system, not bolted on after launch.
+
+- **Legal basis for processing**: Document the legal basis (consent, legitimate interest, contractual necessity) for every AI feature that processes personal data. Consent must be granular — "use my data to improve the product" is not valid consent for AI training.
+- **Data minimization**: Collect and process only the data strictly necessary for the AI task. If a summarization feature doesn't need the user's name, strip it before sending to the model.
+- **Right to erasure**: Users can request deletion of their personal data, including data used in conversation logs, fine-tuning datasets, and vector stores. The system must be able to locate and delete all instances.
+- **Data Processing Impact Assessment (DPIA)**: High-risk AI features — those that profile users, make automated decisions, or process sensitive data — require a DPIA before launch.
+- **Cross-border data transfers**: When AI models or APIs are hosted in a different jurisdiction than the user's data, ensure adequate transfer mechanisms (SCCs, adequacy decisions) are in place.
+- **Data processor agreements**: Third-party AI providers (model APIs, embedding services) are data processors. Ensure DPAs are signed and their data handling policies are compatible with your obligations.
+
+### Non-Production Data Anonymization
+Non-production environments (dev, staging, QA) must never contain real personal data. This is one of the most common — and most preventable — regulatory violations.
+
+```yaml
+non_production_data:
+  policy: anonymize_before_copy     # never copy production data without anonymization
+
+  anonymization:
+    strategy: pseudonymization       # pseudonymization | synthetic_generation | k-anonymity
+    fields:
+      - type: name
+        method: fake_name            # generate realistic fake names
+      - type: email
+        method: hash_and_domain      # user@company.com → a3f8c@test.example.com
+      - type: phone
+        method: randomize            # preserve format, randomize digits
+      - type: address
+        method: generalize           # keep city/state, remove street
+      - type: free_text
+        method: ner_redact           # NER-based PII redaction in unstructured text
+      - type: date_of_birth
+        method: shift                # shift by random offset, preserve age distribution
+
+  validation:
+    scan_after_copy: true            # run PII scanner on anonymized dataset
+    block_on_pii_detected: true      # fail pipeline if PII leaks through
+    audit_log: true                  # log who copied what and when
+
+  refresh_cadence: monthly           # re-anonymize from production monthly for freshness
+```
+
+This is especially critical when AI agents autonomously create branches and spin up ephemeral environments (Factor 11) — automated pipelines must use anonymized datasets by default, never production data.
+
 ### Incident Response for AI
 AI incidents require specific response procedures:
 
@@ -217,7 +260,7 @@ ai_incident_playbook:
 - [ ] Bias monitoring evaluates output quality, refusal rates, and sentiment across demographic segments on a defined cadence
 - [ ] Human-in-the-loop gates are defined for high-risk actions and low-confidence outputs
 - [ ] AI-generated content is clearly disclosed to users
-- [ ] RAG outputs include source attribution
-- [ ] Data governance policies cover provenance, retention, right to erasure, and training data licensing
+- [ ] Non-production environments use anonymized data with automated PII scanning to prevent leaks
+- [ ] Regulatory compliance (GDPR/LGPD) is addressed: legal basis, data minimization, right to erasure, and DPIA for high-risk AI features
 - [ ] An AI incident response playbook exists and is practiced
 - [ ] Safety evaluations are part of the CI pipeline (Factor 5) and production monitoring (Factor 14)
