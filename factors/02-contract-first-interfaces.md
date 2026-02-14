@@ -31,7 +31,7 @@ This update broadens the principle from HTTP APIs to all interface boundaries:
 - **Tool schemas as contracts**: When an LLM uses function calling, the JSON Schema defining each tool *is* the contract. Poorly defined schemas lead to hallucinated parameters, type mismatches, and security vulnerabilities.
 - **Structured output contracts**: When an LLM is expected to produce JSON, the output schema is a contract. Use constrained decoding or schema validation to enforce it.
 - **Agent-to-agent communication**: Multi-agent systems need well-defined message formats. Agents must agree on what they can ask of each other and what responses look like.
-- **RAG pipeline contracts**: The interface between retrieval and generation — what context is passed, in what format, with what metadata — must be explicitly defined.
+- **RAG pipeline contracts**: The interface between retrieval and generation — what context is passed, in what format, with what metadata — must be explicitly defined. Factor 16 covers the full RAG pipeline design (ingestion and query-time); Factor 12 covers semantic caching within RAG.
 
 ## In Practice
 

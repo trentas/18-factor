@@ -262,6 +262,50 @@ metrics:
 
 This closes the loop between Factor 14 (observability) and Factor 18 (AI Economics): cost without business context is just a number, and business value without cost context is just hope.
 
+### AI Service Level Objectives (SLOs)
+Traditional SLOs cover availability and latency. AI features need SLOs for quality, cost, and safety — bridging observability (this factor) with economics (Factor 18).
+
+```yaml
+# ai-slos.yaml
+slos:
+  document_summary:
+    quality:
+      target: 0.90                     # 90% of responses score ≥ threshold on eval
+      measurement: ai_quality_score{feature="summarization"}
+      window: 7d
+      burn_rate_alert: 2x              # alert if error budget burns 2x faster than expected
+
+    latency:
+      p50_target_ms: 2000
+      p99_target_ms: 8000
+      measurement: ai_request_duration_seconds{feature="summarization"}
+      window: 7d
+
+    cost_per_interaction:
+      target_usd: 0.03                 # average cost per request
+      max_usd: 0.50                    # no single request exceeds this
+      measurement: ai_cost_usd{feature="summarization"}
+      window: 30d
+
+    safety:
+      guardrail_trigger_rate: 0.01     # < 1% of requests trigger safety guardrails
+      hallucination_rate: 0.05         # < 5% of responses flagged by hallucination detection
+      window: 7d
+
+  support_chat:
+    quality:
+      target: 0.85
+      window: 7d
+    latency:
+      p50_target_ms: 1500
+      p99_target_ms: 5000
+    resolution_rate:
+      target: 0.70                     # 70% of conversations resolved without human escalation
+      window: 30d
+```
+
+SLOs turn metrics into actionable contracts. When an error budget burns down, the team prioritizes reliability work over features — the same discipline applied to traditional services, extended to AI quality and cost.
+
 ### Observability Anti-Patterns
 - **Logging prompts and completions in plain text**: These may contain PII. Log hashes or redacted versions.
 - **No cost attribution**: If you can't attribute cost to features, teams, or tenants, you can't optimize.

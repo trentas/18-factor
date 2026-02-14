@@ -68,6 +68,8 @@ class AIRequestHandler:
 
 ### Semantic Caching
 
+> Semantic caching integrates naturally with RAG pipelines (Factor 16). Cache lookups happen before the retrieval stage — if a semantically similar query was recently answered with the same context, skip the full pipeline.
+
 ```python
 class SemanticCache:
     """Cache LLM responses using semantic similarity, not exact match."""

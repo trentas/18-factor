@@ -151,6 +151,27 @@ Evaluations don't stop at deployment:
 - **Drift detection**: Alert when evaluation scores trend downward, which may indicate model degradation, data drift, or changing user patterns.
 - **A/B evaluation**: When testing a new model or prompt, run evaluations on both variants with real traffic.
 
+### Tooling Landscape
+The evaluation ecosystem is maturing rapidly. Choose tools based on your needs:
+
+| Tool | Strength | Best For |
+|------|----------|----------|
+| **promptfoo** | Open-source, CLI-first, CI-friendly | Prompt regression testing, A/B comparisons |
+| **Braintrust** | Logging + evals + datasets platform | Teams needing an integrated eval workflow |
+| **Langsmith** (LangChain) | Tracing + eval tied to LangChain | LangChain-based applications |
+| **RAGAS** | RAG-specific metrics (faithfulness, relevance) | Evaluating RAG pipeline quality |
+| **DeepEval** | Pytest-style eval framework | Teams wanting evals that feel like unit tests |
+| **Arize Phoenix** | Open-source observability + evals | Production monitoring with eval integration |
+
+Key selection criteria:
+- **CI integration**: Can it gate a pull request? (promptfoo, DeepEval, Braintrust)
+- **Custom metrics**: Can you define domain-specific evaluation criteria? (all of the above)
+- **Human eval support**: Does it support human review workflows? (Braintrust, Langsmith)
+- **LLM-as-judge**: Does it support model-graded evaluations? (all of the above)
+- **RAG-specific**: Does it have built-in RAG metrics? (RAGAS, DeepEval)
+
+The methodology is tool-agnostic — what matters is that evaluations exist, run in CI, and gate releases. Pick the tool that fits your stack.
+
 ## Compliance Checklist
 
 - [ ] Every AI feature has an evaluation suite with defined quality dimensions

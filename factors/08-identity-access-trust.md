@@ -82,7 +82,7 @@ agents:
     autonomy:
       autonomous_actions: [respond_to_ticket, update_status, search_kb]
       approval_required: [issue_refund, escalate_to_manager, access_billing]
-      human_approval_timeout: 300s
+      approval_timeout_seconds: 300    # consistent with Factor 7 triggers and Factor 17 execution
 ```
 
 ### Trust Boundaries

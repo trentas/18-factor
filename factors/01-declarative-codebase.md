@@ -58,16 +58,74 @@ repo/
 ```
 
 ### Prompt Versioning
-Treat prompts as first-class code artifacts:
-- Store prompts as template files with clear variable interpolation syntax.
-- Use pull requests for prompt changes — diffs are meaningful and reviewable.
-- Tag prompt versions that correspond to production deployments.
-- Include prompt changes in changelog and release notes.
+Treat prompts as first-class code artifacts with variable interpolation:
+
+```markdown
+# prompts/summarization/system.md
+You are a document summarizer for {{company_name}}.
+
+## Instructions
+- Summarize the document in {{language}}, max {{max_sentences}} sentences.
+- Preserve all numerical data and proper nouns.
+- If the document contains PII, replace it with [REDACTED].
+
+## Context
+{{retrieved_context}}
+```
+
+```python
+# Prompts are loaded, rendered, and validated — not hardcoded strings
+prompt = PromptTemplate.load("prompts/summarization/system.md")
+rendered = prompt.render(
+    company_name="Acme Corp",
+    language="en",
+    max_sentences=5,
+    retrieved_context=context,
+)
+```
+
+Use pull requests for prompt changes — diffs are meaningful and reviewable. Tag prompt versions that correspond to production deployments.
+
+### CI Validation for AI Artifacts
+Validate prompts and schemas in the CI pipeline, just like application code:
+
+```yaml
+# .github/workflows/ai-checks.yaml
+ai-validation:
+  steps:
+    - name: Validate prompt templates
+      run: |
+        python -m promptlint prompts/          # check syntax, undefined variables
+    - name: Validate tool schemas
+      run: |
+        jsonschema-lint tools/*.json           # valid JSON Schema
+    - name: Check context budgets
+      run: |
+        python scripts/check_token_budgets.py  # prompts fit within allocated budgets
+    - name: Run eval quick-suite
+      run: |
+        python -m eval run --suite quick       # fast subset of evals (Factor 6)
+```
 
 ### GitOps for AI
-- Declare model versions, endpoint configurations, and feature flags in Git.
-- Use Git as the trigger for deployment — changes merged to `main` are automatically applied.
-- Rollback is a `git revert`, not a manual infrastructure change.
+Declare model versions, endpoint configurations, and feature flags in Git:
+
+```yaml
+# deploy/ai-config.yaml — GitOps deploys this on merge to main
+models:
+  summarization:
+    model: claude-sonnet-4-5-20250929
+    version_pinned: "2025-09-29"
+    rollback_to: claude-sonnet-4-5-20250514    # previous known-good
+  classification:
+    model: claude-haiku-4-5-20251001
+
+feature_flags:
+  use_new_rag_pipeline: false                  # toggle without redeploy
+  enable_streaming: true
+```
+
+Rollback is a `git revert`, not a manual infrastructure change.
 
 ### Monorepo vs. Multi-repo
 The original factor's "one codebase, many deploys" still applies. Whether using a monorepo or multi-repo strategy, each deployable unit has a single codebase. Shared libraries are dependencies (Factor 3), not copy-pasted code.

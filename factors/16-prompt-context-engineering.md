@@ -123,6 +123,8 @@ context_budget:
 
 ### RAG Pipeline Design
 
+> The query-time pipeline below works with Factor 12's semantic caching (cache lookups before retrieval) and Factor 2's contract definitions (schema for the retrieval-to-generation interface). For the ingestion side — chunking, embedding, and indexing — see the RAG Ingestion Pipeline section below.
+
 ```python
 class RAGPipeline:
     """Structured retrieval-augmented generation pipeline."""
@@ -197,6 +199,80 @@ class RAGPipeline:
         return ContextBundle(documents=assembled, total_tokens=tokens_used)
 ```
 
+### RAG Ingestion Pipeline
+The query-time pipeline above assumes documents are already chunked, embedded, and indexed. The ingestion side is equally important — and often harder to get right:
+
+```python
+class RAGIngestionPipeline:
+    """Ingest documents into the vector store for retrieval."""
+
+    def __init__(self, chunker, embedder, vector_store, metadata_extractor):
+        self.chunker = chunker
+        self.embedder = embedder
+        self.vector_store = vector_store
+        self.metadata_extractor = metadata_extractor
+
+    async def ingest(self, document: Document) -> IngestionResult:
+        # Stage 1: Extract and clean text
+        text = await self.extract_text(document)  # handles PDF, DOCX, HTML, etc.
+
+        # Stage 2: Extract metadata
+        metadata = self.metadata_extractor.extract(document)  # title, author, date, source
+
+        # Stage 3: Chunk with overlap
+        chunks = self.chunker.chunk(
+            text=text,
+            strategy="recursive",         # recursive character splitting
+            chunk_size=512,                # tokens per chunk
+            chunk_overlap=64,              # overlap prevents losing context at boundaries
+        )
+
+        # Stage 4: Embed chunks (with caching — Factor 12)
+        embeddings = await self.embedder.embed([c.text for c in chunks])
+
+        # Stage 5: Upsert to vector store with metadata
+        vectors = [
+            Vector(
+                id=f"{document.id}:chunk:{i}",
+                values=embedding,
+                metadata={
+                    **metadata,
+                    "chunk_index": i,
+                    "source_document_id": document.id,
+                    "ingested_at": now().isoformat(),
+                },
+            )
+            for i, embedding in enumerate(embeddings)
+        ]
+        await self.vector_store.upsert(vectors)
+
+        return IngestionResult(document_id=document.id, chunks=len(chunks))
+```
+
+```yaml
+# ingestion-config.yaml
+ingestion:
+  chunking:
+    strategy: recursive               # recursive | sentence | semantic | fixed
+    chunk_size_tokens: 512
+    chunk_overlap_tokens: 64
+    respect_boundaries: true           # don't split mid-sentence or mid-paragraph
+
+  scheduling:
+    mode: incremental                  # incremental | full_reindex
+    trigger: on_document_change        # webhook, file watcher, or scheduled
+    full_reindex_cadence: monthly      # catch any drift or missed updates
+
+  deletion:
+    strategy: cascade                  # when source doc is deleted, remove all chunks
+    orphan_detection: weekly           # scan for chunks without valid source docs
+
+  quality:
+    min_chunk_length_tokens: 50        # discard very short chunks (noise)
+    deduplication: content_hash        # skip re-ingestion of unchanged documents
+    validation: spot_check             # sample 1% of ingested chunks for quality review
+```
+
 ### Prompt Testing
 
 ```python
@@ -226,6 +302,43 @@ class PromptTests:
         assert is_valid_format(response)
         assert not contains_pii(response)
 ```
+
+### Multimodal Context Management
+Modern models accept images, audio, PDFs, and video alongside text. Multimodal inputs consume context budget differently and require explicit handling:
+
+```yaml
+# multimodal-budget.yaml
+multimodal_policy:
+  images:
+    max_per_request: 5
+    max_resolution: 2048x2048       # higher resolution = more tokens
+    token_estimation: auto           # provider-specific calculation
+    preprocessing:
+      - resize_if_above: 1568x1568  # balance quality vs. token cost
+      - strip_exif: true            # remove metadata (may contain PII)
+    budget_allocation: 4000          # tokens reserved for image context
+
+  audio:
+    max_duration_seconds: 300
+    transcription_strategy: pre_transcribe  # transcribe before sending to LLM
+    model: whisper-large-v3
+    budget_allocation: 2000          # tokens for transcript
+
+  documents:
+    formats: [pdf, docx, xlsx]
+    strategy: extract_and_chunk      # extract text, chunk, embed for RAG
+    max_pages: 50
+
+  video:
+    strategy: frame_sampling         # extract key frames as images
+    sample_rate: 1_per_10_seconds
+    max_frames: 20
+```
+
+Key multimodal engineering decisions:
+- **Image tokens are expensive**: A single high-resolution image can consume thousands of tokens. Resize to the minimum resolution that preserves the information needed. Factor 18 cost models must account for image token pricing, which differs from text.
+- **Pre-process when possible**: Transcribe audio to text, extract text from PDFs, and sample frames from video *before* sending to the model. This gives you control over token budget and lets you cache intermediate results (Factor 12).
+- **Multimodal observability**: Log input modality types and token consumption per modality. Factor 14 metrics should distinguish between text and image token costs.
 
 ### Prompt Optimization Strategies
 

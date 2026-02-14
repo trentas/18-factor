@@ -79,7 +79,7 @@ agents:
 
       - name: send_email
         permission: human_approval  # Must ask first
-        approval_timeout: 300s
+        approval_timeout_seconds: 300   # consistent with Factor 7 triggers and Factor 8 policy
 
       - name: write_to_database
         permission: denied          # Cannot use this tool
@@ -87,7 +87,7 @@ agents:
     execution_budget:
       max_steps: 25                 # Maximum tool calls per invocation
       max_tokens: 50000             # Maximum total tokens (input + output)
-      max_cost_usd: 1.00            # Maximum cost per invocation
+      max_cost_usd: 1.00            # Maximum cost per invocation (Factor 18 defines org-wide budget hierarchy)
       max_duration_seconds: 120     # Maximum wall-clock time
       max_retries: 3                # Maximum retries on failure
 
@@ -160,6 +160,8 @@ class AgentExecutor:
 
 ### Human-in-the-Loop Patterns
 
+This factor defines the *execution mechanisms* for human approval. Factor 7 defines *when* approval is triggered (safety scores, confidence thresholds), and Factor 8 defines *who* is authorized to approve.
+
 **Approval Gate**: Agent pauses and waits for human approval:
 
 ```python
@@ -179,7 +181,7 @@ class ApprovalGate:
         try:
             response = await asyncio.wait_for(
                 self.approval_queue.get(request.id),
-                timeout=self.agent.tools[action.tool_name].approval_timeout,
+                timeout=self.agent.tools[action.tool_name].approval_timeout_seconds,
             )
             return response.approved
         except asyncio.TimeoutError:

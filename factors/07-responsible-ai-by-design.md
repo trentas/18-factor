@@ -32,13 +32,13 @@ Implement defense in depth — multiple layers, each catching different issues:
 
 ```
 ┌──────────────────────────────────────────────┐
-│              INPUT GUARDRAILS                 │
+│              INPUT GUARDRAILS                │
 │  Prompt injection detection                  │
 │  Input validation and sanitization           │
 │  PII detection and redaction                 │
 │  Content policy pre-screening                │
 ├──────────────────────────────────────────────┤
-│              MODEL LAYER                      │
+│              MODEL LAYER                     │
 │  System prompt with safety instructions      │
 │  Constrained output schemas                  │
 │  Temperature and sampling controls           │
@@ -131,24 +131,24 @@ class BiasMonitor:
 ```
 
 ### Human-in-the-Loop Gates
-Define clear criteria for when human oversight is required:
+Define clear criteria for *when* human oversight is required. This factor owns the trigger conditions; Factor 8 defines *who* can approve, and Factor 17 defines *how* approval is executed at runtime.
 
 ```yaml
 human_review_triggers:
   # Content-based triggers
   - condition: safety_score < 0.7
     action: block_and_queue_for_review
-    sla_minutes: 30
+    approval_timeout_seconds: 1800
 
   # Action-based triggers
   - condition: agent_action in [delete, publish, send_email, financial_transaction]
     action: require_approval_before_execution
-    sla_minutes: 5
+    approval_timeout_seconds: 300
 
   # Confidence-based triggers
   - condition: model_confidence < 0.5
     action: flag_for_review_before_serving
-    sla_minutes: 15
+    approval_timeout_seconds: 900
 
   # Volume-based triggers
   - condition: user_requests_per_hour > 100
@@ -233,6 +233,41 @@ non_production_data:
 
 This is especially critical when AI agents autonomously create branches and spin up ephemeral environments (Factor 11) — automated pipelines must use anonymized datasets by default, never production data.
 
+### Red Teaming and Adversarial Testing
+Defensive guardrails are necessary but not sufficient. You must actively test them. Red teaming is the practice of systematically probing an AI system for vulnerabilities — prompt injection bypasses, harmful output generation, PII extraction, bias exploitation, and jailbreaks.
+
+```yaml
+red_team_program:
+  cadence: quarterly                  # full red team exercise
+  continuous: true                    # automated adversarial evals run in CI
+
+  attack_categories:
+    - prompt_injection:               # attempts to override system instructions
+        methods: [direct_injection, indirect_injection, payload_splitting]
+    - jailbreak:                      # attempts to bypass safety boundaries
+        methods: [roleplay, encoding_tricks, multi_turn_escalation]
+    - data_extraction:                # attempts to extract training data or PII
+        methods: [memorization_probing, context_extraction, system_prompt_leak]
+    - bias_exploitation:              # attempts to trigger biased outputs
+        methods: [demographic_probing, stereotype_elicitation]
+    - output_manipulation:            # attempts to generate harmful content
+        methods: [indirect_harmful, dual_use, gradual_escalation]
+
+  adversarial_eval_dataset:
+    source: evals/adversarial.jsonl   # versioned alongside code (Factor 1)
+    min_samples: 200
+    refresh: after_each_exercise      # add new attack vectors discovered
+
+  response:
+    vulnerability_found:
+      - add_to_adversarial_dataset
+      - create_guardrail_or_fix
+      - re_run_eval_suite
+      - update_incident_playbook
+```
+
+Red teaming is not a one-time audit — it's a continuous practice. Every model upgrade, prompt change, or new feature should trigger adversarial evaluation. Automated adversarial eval suites (Factor 6) complement but do not replace human-led exercises.
+
 ### Incident Response for AI
 AI incidents require specific response procedures:
 
@@ -263,4 +298,4 @@ ai_incident_playbook:
 - [ ] Non-production environments use anonymized data with automated PII scanning to prevent leaks
 - [ ] Regulatory compliance (GDPR/LGPD) is addressed: legal basis, data minimization, right to erasure, and DPIA for high-risk AI features
 - [ ] An AI incident response playbook exists and is practiced
-- [ ] Safety evaluations are part of the CI pipeline (Factor 5) and production monitoring (Factor 14)
+- [ ] Red teaming exercises run on a defined cadence with adversarial eval datasets maintained in CI

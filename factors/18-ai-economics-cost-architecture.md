@@ -46,6 +46,12 @@ cost_model:
       input_per_1m_tokens: 0.02
       typical_use: "Document embedding, semantic search"
 
+  # Multimodal inputs have different token economics
+  multimodal:
+    image_tokens: "A 1024x1024 image ≈ 1,000 tokens; cost scales with resolution"
+    audio: "Pre-transcription recommended — transcription cost + text tokens < raw audio tokens"
+    note: "See Factor 16 for multimodal context budget allocation"
+
   # Estimate costs per feature
   features:
     document_summary:

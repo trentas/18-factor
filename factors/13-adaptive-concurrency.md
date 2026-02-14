@@ -151,7 +151,7 @@ autoscaling:
         remove_instances: 1
         drain_timeout: 60s  # Factor 9: graceful shutdown
 
-    cost_circuit_breaker:
+    cost_circuit_breaker:             # Factor 18 defines the full budget hierarchy
       daily_budget_usd: 2000
       alert_threshold: 0.80     # Alert at 80% of budget
       action_threshold: 0.95    # Stop scaling at 95% of budget
@@ -242,7 +242,7 @@ Go beyond CPU and memory for auto-scaling decisions:
 - [ ] Each process type is independently scalable with appropriate resource definitions
 - [ ] GPU workloads scale on GPU-specific metrics (utilization, memory), not CPU
 - [ ] AI provider rate limits are respected through client-side concurrency control
-- [ ] Cost budgets are enforced as scaling constraints (circuit breakers)
+- [ ] Cost budgets are enforced as scaling constraints — circuit breakers aligned with Factor 18 budget hierarchy
 - [ ] Auto-scaling signals include AI-specific metrics (queue depth, token throughput, cost rate)
 - [ ] Interactive and batch workloads use different scaling strategies
 - [ ] Multi-provider routing balances load across providers based on capacity and cost

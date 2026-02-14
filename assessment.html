@@ -345,7 +345,7 @@ const FACTORS = [
       "Non-production environments use anonymized data with automated PII scanning to prevent leaks",
       "Regulatory compliance (GDPR/LGPD) is addressed: legal basis, data minimization, right to erasure, and DPIA for high-risk AI features",
       "An AI incident response playbook exists and is practiced",
-      "Safety evaluations are part of the CI pipeline (Factor 5) and production monitoring (Factor 14)"
+      "Red teaming exercises run on a defined cadence with adversarial eval datasets maintained in CI"
     ]
   },
   {
@@ -429,7 +429,7 @@ const FACTORS = [
       "Each process type is independently scalable with appropriate resource definitions",
       "GPU workloads scale on GPU-specific metrics (utilization, memory), not CPU",
       "AI provider rate limits are respected through client-side concurrency control",
-      "Cost budgets are enforced as scaling constraints (circuit breakers)",
+      "Cost budgets are enforced as scaling constraints — circuit breakers aligned with Factor 18 budget hierarchy",
       "Auto-scaling signals include AI-specific metrics (queue depth, token throughput, cost rate)",
       "Interactive and batch workloads use different scaling strategies",
       "Multi-provider routing balances load across providers based on capacity and cost",
